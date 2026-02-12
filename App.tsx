@@ -204,7 +204,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="w-1/4 h-full">
-          {/* ✅ agora SidePanel recebe lastUpdate para mostrar no footer */}
           <SidePanel rows={orders} scope={{ mode, code: targetKey }} lastUpdate={lastUpdate} />
         </div>
       </div>
