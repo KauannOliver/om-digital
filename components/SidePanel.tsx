@@ -121,7 +121,6 @@ function statusBucket(desc?: string | null) {
   return 'OUTROS';
 }
 
-
 const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
   const [summary, setSummary] = useState<AssetFamilySummary[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'refreshing' | 'ready' | 'error'>('idle');
@@ -318,6 +317,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
     return list.slice(0, 10);
   }, [summary, unavailableByFamily]);
 
+  const formatPct = (value: number) =>
+    new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    }).format(value) + '%';
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col gap-4 flex-1 min-h-0">
@@ -397,7 +402,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
                         <div
                           className="h-8 w-12 rounded-md flex items-center justify-center border"
                           style={{
-                            backgroundColor: hexToRgba(m.color, 0.10),
+                            backgroundColor: hexToRgba(m.color, 0.1),
                             borderColor: hexToRgba(m.color, 0.22)
                           }}
                           title={m.label}
@@ -466,7 +471,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
               <div className="text-gray-500 font-bold">Sem dados do cadastro para este escopo.</div>
             ) : (
               disponibilidadeAtual.map((f) => {
-                const ratio = f.total > 0 ? (f.disp / f.total) * 100 : 0;
+                const ratio = f.total > 0 ? (f.disp / f.total) * 100 : 0; // % DISPONÍVEL
+                const ratioText = f.total > 0 ? formatPct(ratio) : '—';
 
                 return (
                   <div key={f.key} className="flex items-center gap-3">
@@ -488,10 +494,10 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
                         >
                           {f.family_name}
                         </span>
-
                         <span className="text-[12px] font-black text-[#212A57] leading-none whitespace-nowrap">
                           {f.disp}/{f.total}{' '}
-                          <span className="text-red-700">({f.indisps} INDISP.)</span>
+                          <span className="text-red-700">({f.indisps} INDISP.)</span>{' '}
+                          <span className="text-[#212A57]/80">{ratioText}</span>
                         </span>
                       </div>
 
