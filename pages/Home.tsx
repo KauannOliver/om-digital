@@ -1,84 +1,125 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchBranches, fetchOperations } from '../api';
-import type { BranchInfo, OperationInfo } from '../types';
+import { useGlobalData } from '../components/GlobalDataContext';
+
+function normalizeName(value?: string | null) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function nameMatches(name: string | null | undefined, query: string) {
+  const normalizedName = normalizeName(name);
+  const normalizedQuery = normalizeName(query);
+
+  if (!normalizedQuery) return true;
+  if (!normalizedName) return false;
+
+  const tokens = normalizedQuery.split(' ').filter(Boolean);
+  return tokens.every((token) => normalizedName.includes(token));
+}
 
 const Home: React.FC = () => {
-  const [branches, setBranches] = useState<BranchInfo[]>([]);
-  const [operations, setOperations] = useState<OperationInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { branches, operations, initialLoading: loading, error } = useGlobalData();
   const [q, setQ] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const [b, o] = await Promise.all([fetchBranches(), fetchOperations()]);
-        if (!alive) return;
-
-        setBranches(b);
-        setOperations(o);
-      } catch (e: any) {
-        if (!alive) return;
-        setError(e?.message || 'Erro ao carregar listas');
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const term = q.trim().toLowerCase();
+  const [submittedQ, setSubmittedQ] = useState('');
 
   const filteredBranches = useMemo(() => {
-    if (!term) return branches;
+    if (!submittedQ.trim()) return branches;
+    
+    const qStr = normalizeName(submittedQ);
+    const qNoSpaces = qStr.replace(/\s+/g, '');
+    const isOnlyNumbers = /^\d+$/.test(qNoSpaces);
+    const tokens = qStr.split(' ').filter(Boolean);
+
     return branches.filter((b) => {
-      return (
-        (b.branch_route || '').toLowerCase().includes(term) ||
-        (b.branch || '').toLowerCase().includes(term) ||
-        (b.branch_name || '').toLowerCase().includes(term)
-      );
+      const texts = [b.branch_name, b.branch, b.branch_route].map(normalizeName);
+      
+      // Match forte com toda a string junta (ideal p/ remover espaços de buscas)
+      const unifiedNoSpaces = texts.map(t => t.replace(/\s+/g, '')).join('@@');
+      if (unifiedNoSpaces.includes(qNoSpaces)) return true;
+
+      // Se for apenas número, restringimos para não dar match cruzado (ex: 01 01 nos tokens = true default)
+      if (isOnlyNumbers) return false;
+
+      // Fallback: match flexível por tokens (ex: MATRIZ 01)
+      const unified = texts.join(' ');
+      return tokens.every(token => unified.includes(token));
     });
-  }, [branches, term]);
+  }, [branches, submittedQ]);
 
   const filteredOperations = useMemo(() => {
-    if (!term) return operations;
+    if (!submittedQ.trim()) return operations;
+    
+    const qStr = normalizeName(submittedQ);
+    const qNoSpaces = qStr.replace(/\s+/g, '');
+    const isOnlyNumbers = /^\d+$/.test(qNoSpaces);
+    const tokens = qStr.split(' ').filter(Boolean);
+
     return operations.filter((o) => {
-      return (
-        (o.operation_code || '').toLowerCase().includes(term) ||
-        (o.operation || '').toLowerCase().includes(term)
-      );
+      const texts = [o.operation, o.operation_code].map(normalizeName);
+      
+      const unifiedNoSpaces = texts.map(t => t.replace(/\s+/g, '')).join('@@');
+      if (unifiedNoSpaces.includes(qNoSpaces)) return true;
+
+      if (isOnlyNumbers) return false;
+
+      const unified = texts.join(' ');
+      return tokens.every(token => unified.includes(token));
     });
-  }, [operations, term]);
+  }, [operations, submittedQ]);
 
   return (
-    <div className="h-screen bg-[#0b1024] text-white flex flex-col">
-      <header className="sticky top-0 z-10 bg-[#212A57] border-b border-[#079AE1]/30 px-6 py-5 shrink-0">
+    <div className="h-screen flex flex-col bg-[#0b1024] text-white">
+      <header className="shrink-0 sticky top-0 z-10 bg-[#212A57] border-b border-[#079AE1]/30 px-6 py-5">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
           <div className="flex flex-col">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">OM Digital</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight uppercase">
+              OM Digital
+            </h1>
             <span className="text-[11px] md:text-xs text-[#079AE1] uppercase tracking-[0.22em] font-black">
               Selecione filial ou operação
             </span>
           </div>
 
-          <div className="w-full max-w-md">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por 0121, nome da filial, 515, nome da operação..."
+          <div className="w-full max-w-md flex gap-2">
+            <div className="relative flex-grow">
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  if (e.target.value === '') setSubmittedQ('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setSubmittedQ(q);
+                }}
+              placeholder="Buscar pelo nome da filial ou operação..."
               className="w-full bg-white/10 border border-white/10 focus:border-[#079AE1]/70 outline-none rounded-xl px-4 py-3 text-sm"
             />
+            {q && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQ('');
+                  setSubmittedQ('');
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+              >
+                ✕
+              </button>
+            )}
+            </div>
+            <button
+              onClick={() => setSubmittedQ(q)}
+              className="bg-[#079AE1] hover:opacity-90 text-white font-black px-5 py-3 rounded-xl transition-all"
+            >
+              BUSCAR
+            </button>
           </div>
         </div>
       </header>
@@ -93,12 +134,12 @@ const Home: React.FC = () => {
 
           {!loading && error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6">
-              <div className="font-bold">Não foi possível carregar</div>
+              <div className="font-bold">Aviso</div>
               <div className="text-sm text-white/80 mt-2">{error}</div>
             </div>
           )}
 
-          {!loading && !error && (
+          {!loading && (
             <>
               <section className="space-y-3">
                 <div className="text-xs text-[#079AE1] uppercase tracking-[0.22em] font-black">
@@ -118,7 +159,7 @@ const Home: React.FC = () => {
                             {b.branch_name || 'SEM NOME'}
                           </div>
                           <div className="text-xs text-white/70 mt-1">
-                            Branch: <span className="font-mono">{b.branch}</span>
+                            Filial: <span className="font-mono">{b.branch}</span>
                           </div>
                         </div>
 
@@ -132,6 +173,12 @@ const Home: React.FC = () => {
                     </Link>
                   ))}
                 </div>
+
+                {filteredBranches.length === 0 && (
+                  <div className="text-sm text-white/70 font-bold">
+                    Nenhuma filial encontrada.
+                  </div>
+                )}
               </section>
 
               <section className="space-y-3">
@@ -166,18 +213,24 @@ const Home: React.FC = () => {
                     </Link>
                   ))}
                 </div>
-              </section>
 
-              <footer className="pt-2 pb-10">
-                <div className="text-xs text-white/50">
-                  Rotas: <code className="px-2 py-1 bg-white/10 rounded">/branch/0121</code> e{' '}
-                  <code className="px-2 py-1 bg-white/10 rounded">/operation/515</code>
-                </div>
-              </footer>
+                {filteredOperations.length === 0 && (
+                  <div className="text-sm text-white/70 font-bold">
+                    Nenhuma operação encontrada.
+                  </div>
+                )}
+              </section>
             </>
           )}
         </div>
       </main>
+
+      <footer className="shrink-0 max-w-6xl mx-auto px-6 pb-6 pt-2 w-full">
+        <div className="text-xs text-white/50">
+          Rotas: <code className="px-2 py-1 bg-white/10 rounded">/branch/0902</code> e{' '}
+          <code className="px-2 py-1 bg-white/10 rounded">/operation/23</code>
+        </div>
+      </footer>
     </div>
   );
 };

@@ -78,27 +78,27 @@ function normalizeFamilyName(v?: string | null) {
     .toUpperCase();
 }
 
+function publicImg(fileName: string) {
+  return `${import.meta.env.BASE_URL}imgs/${stripExt(fileName)}.png`;
+}
+
 function familyIconSrc(familyName?: string | null) {
   const s = normalizeFamilyName(familyName);
 
-  if (s.includes('VEICUL') && s.includes('LEVE'))
-    return `/imgs/${stripExt('veiculo_leve-removebg-preview')}.png`;
-  if (s.includes('CAMINH')) return `/imgs/${stripExt('caminhao-removebg-preview')}.png`;
-  if (s.includes('CAVAL') && s.includes('MECAN'))
-    return `/imgs/${stripExt('cavalo_mecanico-removebg-preview')}.png`;
-  if (s.includes('CAVAL')) return `/imgs/${stripExt('cavalo_mecanico-removebg-preview')}.png`;
-  if (s.includes('SEMI') || s.includes('REBOQ'))
-    return `/imgs/${stripExt('semi_reboque-removebg-preview')}.png`;
-  if (s.includes('CARROCER')) return `/imgs/${stripExt('semi_reboque-removebg-preview')}.png`;
-  if (s.includes('TRATOR')) return `/imgs/${stripExt('trator-removebg-preview')}.png`;
-  if (s.includes('MAQUIN')) return `/imgs/${stripExt('maquina-removebg-preview')}.png`;
-  if (s.includes('EMPIL')) return `/imgs/${stripExt('empilhadeira-removebg-preview')}.png`;
-  if (s.includes('ONIBUS')) return `/imgs/${stripExt('onibus-removebg-preview')}.png`;
-  if (s.includes('EQUIP')) return `/imgs/${stripExt('equipamentos-removebg-preview')}.png`;
-  if (s.includes('AERONAV') || s.includes('AERONAVE') || s.includes('AVIAO'))
-    return `/imgs/${stripExt('aeronave-removebg-preview')}.png`;
+  if (s.includes('VEICUL') && s.includes('LEVE')) return publicImg('veiculo_leve-removebg-preview');
+  if (s.includes('CAMINH')) return publicImg('caminhao-removebg-preview');
+  if (s.includes('CAVAL') && s.includes('MECAN')) return publicImg('cavalo_mecanico-removebg-preview');
+  if (s.includes('CAVAL')) return publicImg('cavalo_mecanico-removebg-preview');
+  if (s.includes('SEMI') || s.includes('REBOQ')) return publicImg('semi_reboque-removebg-preview');
+  if (s.includes('CARROCER')) return publicImg('semi_reboque-removebg-preview');
+  if (s.includes('TRATOR')) return publicImg('trator-removebg-preview');
+  if (s.includes('MAQUIN')) return publicImg('maquina-removebg-preview');
+  if (s.includes('EMPIL')) return publicImg('empilhadeira-removebg-preview');
+  if (s.includes('ONIBUS')) return publicImg('onibus-removebg-preview');
+  if (s.includes('EQUIP')) return publicImg('equipamentos-removebg-preview');
+  if (s.includes('AERONAV') || s.includes('AERONAVE') || s.includes('AVIAO')) return publicImg('aeronave-removebg-preview');
 
-  return `/imgs/${stripExt('maquina-removebg-preview')}.png`;
+  return publicImg('maquina-removebg-preview');
 }
 
 type UnavailableFamilyEntry = {
@@ -261,7 +261,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
 
     runFetch();
 
-    const t = window.setInterval(runFetch, 60_000);
+    const syncMs = Number((import.meta as any).env?.VITE_SIDEPANEL_SYNC_MS || 60_000);
+    const t = window.setInterval(runFetch, syncMs);
 
     return () => {
       alive = false;
@@ -284,10 +285,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
     const list = (summary || []).map((s) => {
       const code = (s.family || '').toUpperCase().trim();
       const name = (s.family_name || 'SEM FAMÍLIA').toUpperCase().trim();
-      const total = Number(s.total_plates || 0);
-
+      const totalInFleet = Number(s.total_plates || 0);
       const entry = unavailableByFamily.get(code) || unavailableByFamily.get(name);
       const indisps = entry ? entry.plates.size : 0;
+
+      // The total fleet count should at least reflect all vehicles currently in maintenance
+      const total = Math.max(totalInFleet, indisps);
       const disp = Math.max(0, total - indisps);
 
       return {
@@ -313,7 +316,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
       }
     }
 
-    list.sort((a, b) => (b.indisps - a.indisps) || (b.total - a.total));
+    list.sort((a, b) => (b.indisps - a.indisps) || b.total - a.total);
     return list.slice(0, 10);
   }, [summary, unavailableByFamily]);
 
@@ -471,7 +474,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ rows, scope, lastUpdate }) => {
               <div className="text-gray-500 font-bold">Sem dados do cadastro para este escopo.</div>
             ) : (
               disponibilidadeAtual.map((f) => {
-                const ratio = f.total > 0 ? (f.disp / f.total) * 100 : 0; // % DISPONÍVEL
+                const ratio = f.total > 0 ? (f.disp / f.total) * 100 : 0;
                 const ratioText = f.total > 0 ? formatPct(ratio) : '—';
 
                 return (

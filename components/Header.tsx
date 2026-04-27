@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ASSETS } from '../constants';
 
 interface HeaderProps {
@@ -25,12 +25,25 @@ const Header: React.FC<HeaderProps> = ({ title, operation, lastUpdate, onLogoCli
       minute: '2-digit'
     });
 
+  const logoSrc = useMemo(() => {
+    const raw = ASSETS.LOGO || '';
+
+    if (!raw) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+
+    const clean = raw.replace(/^\/+/, '');
+    return `${import.meta.env.BASE_URL}${clean}`;
+  }, []);
+
   return (
     <header className="h-20 bg-[#212A57] border-b border-[#079AE1]/30 flex items-center justify-between px-8 text-white z-50">
       <div className="flex items-center gap-6">
-        <div onClick={onLogoClick} className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-4">
+        <div
+          onClick={onLogoClick}
+          className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-4"
+        >
           <div className="bg-transparent p-2 rounded-lg flex items-center justify-center">
-            <img src={ASSETS.LOGO} alt="OM Digital Logo" className="h-10 object-contain" />
+            <img src={logoSrc} alt="OM Digital Logo" className="h-10 object-contain" />
           </div>
           <h1 className="text-3xl font-black tracking-tighter uppercase">{title}</h1>
         </div>

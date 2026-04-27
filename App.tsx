@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { AppScreen } from './types';
 import type { Announcement, BranchInfo, OperationInfo, MainOrderRow } from './types';
 
@@ -12,10 +12,9 @@ import AnnouncementManager from './components/AnnouncementManager';
 
 import {
   fetchBranchInfo,
-  fetchOperationInfo,
-  fetchOrdersByBranch,
-  fetchOrdersByOperation
+  fetchOperationInfo
 } from './api';
+import { useGlobalData } from './components/GlobalDataContext';
 
 function normalizeRoute(v: string) {
   return (v || '').replace(/\s+/g, '').trim();
@@ -31,6 +30,16 @@ function isAnnouncementActiveForTarget(a: Announcement, target: string) {
 
 const App: React.FC = () => {
   const params = useParams();
+  const navigate = useNavigate();
+
+  const {
+    allOrders,
+    initialLoading,
+    refreshing,
+    error,
+    lastUpdate,
+    syncData
+  } = useGlobalData();
 
   const branchRoute = params.branchRoute ? normalizeRoute(params.branchRoute) : '';
   const operationCode = params.operationCode ? normalizeRoute(params.operationCode) : '';
@@ -39,17 +48,8 @@ const App: React.FC = () => {
   const targetKey = mode === 'operation' ? operationCode : branchRoute;
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(AppScreen.MAIN);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-
   const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
   const [operationInfo, setOperationInfo] = useState<OperationInfo | null>(null);
-
-  const [orders, setOrders] = useState<MainOrderRow[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const firstLoadRef = useRef(true);
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([
     {
@@ -63,57 +63,38 @@ const App: React.FC = () => {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const loadData = useCallback(async () => {
-    const isFirst = firstLoadRef.current;
+  const fetchMetadata = useCallback(async () => {
     if (!targetKey) return;
-
-    if (isFirst) setInitialLoading(true);
-    else setRefreshing(true);
-
     try {
       if (mode === 'branch') {
-        const [b, o] = await Promise.all([
-          fetchBranchInfo(branchRoute),
-          fetchOrdersByBranch(branchRoute)
-        ]);
+        const b = await fetchBranchInfo(branchRoute);
         setBranchInfo(b);
         setOperationInfo(null);
-        setOrders(o);
       } else {
-        const [op, o] = await Promise.all([
-          fetchOperationInfo(operationCode),
-          fetchOrdersByOperation(operationCode)
-        ]);
+        const op = await fetchOperationInfo(operationCode);
         setOperationInfo(op);
         setBranchInfo(null);
-        setOrders(o);
       }
-
-      setError(null);
-      setLastUpdate(new Date());
-      firstLoadRef.current = false;
-    } catch (e: any) {
-      const msg = e?.message || 'Erro ao carregar dados';
-
-      if (isFirst && orders.length === 0) {
-        setError(msg);
-        setOrders([]);
-        setBranchInfo(null);
-        setOperationInfo(null);
-      } else {
-        console.warn('Refresh falhou, mantendo dados atuais:', msg);
-      }
-    } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
+    } catch (e) {
+      console.warn('Falha ao carregar metadados:', e);
     }
-  }, [mode, targetKey, branchRoute, operationCode, orders.length]);
+  }, [mode, targetKey, branchRoute, operationCode]);
 
+  // Metadata Sync Effect (on route change)
   useEffect(() => {
-    loadData();
-    const t = setInterval(loadData, 60000);
-    return () => clearInterval(t);
-  }, [loadData]);
+    fetchMetadata();
+  }, [fetchMetadata]);
+
+
+  const orders = useMemo(() => {
+    if (mode === 'branch') {
+      return allOrders.filter((o) => o.branch_route === branchRoute);
+    } else {
+      return allOrders.filter((o) => o.operation_code === operationCode);
+    }
+  }, [allOrders, mode, branchRoute, operationCode]);
+
+
 
   const activeAnnouncement = useMemo(() => {
     const candidates = announcements.filter((a) => isAnnouncementActiveForTarget(a, targetKey));
@@ -125,7 +106,8 @@ const App: React.FC = () => {
 
     if (currentScreen === AppScreen.MAIN) {
       if (activeAnnouncement) {
-        timer = setTimeout(() => setCurrentScreen(AppScreen.ANNOUNCEMENT), 600000);
+        const timeoutMs = Number((import.meta as any).env?.VITE_IDLE_TIMEOUT_MS || 600000);
+        timer = setTimeout(() => setCurrentScreen(AppScreen.ANNOUNCEMENT), timeoutMs);
       }
     } else if (currentScreen === AppScreen.ANNOUNCEMENT) {
       const ms = (activeAnnouncement?.durationSeconds ?? 10) * 1000;
@@ -136,8 +118,7 @@ const App: React.FC = () => {
   }, [currentScreen, activeAnnouncement]);
 
   const handleLogoClick = () => {
-    if (!isAuthenticated) setCurrentScreen(AppScreen.LOGIN);
-    else setCurrentScreen(AppScreen.MANAGER);
+    navigate('/');
   };
 
   const handleLoginSuccess = () => {
@@ -161,7 +142,7 @@ const App: React.FC = () => {
 
   const headerOperation =
     mode === 'branch'
-      ? (branchInfo?.branch_name || orders[0]?.branch_name || branchRoute || 'CARREGANDO...')
+      ? (orders[0]?.branch_name || branchInfo?.branch_name || branchRoute || 'CARREGANDO...')
       : (operationInfo?.operation || orders[0]?.operation || operationCode || 'CARREGANDO...');
 
   const renderMain = () => {
@@ -182,7 +163,7 @@ const App: React.FC = () => {
             <div className="text-red-700 font-black text-2xl">Erro</div>
             <div className="mt-2 text-gray-700 font-bold">{error}</div>
             <button
-              onClick={loadData}
+              onClick={() => syncData()}
               className="mt-6 bg-[#079AE1] text-white font-black px-6 py-3 rounded-xl hover:opacity-90"
             >
               TENTAR NOVAMENTE

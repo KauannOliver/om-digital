@@ -1,5 +1,5 @@
 export interface BranchInfo {
-  branch_route: string; // "0123"
+  branch_route: string;
   branch: string;
   branch_name: string;
 }

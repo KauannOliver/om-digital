@@ -1,59 +1,75 @@
-type CacheEntry<T> = {
+export type CacheMeta<T> = {
+  data: T;
+  hit: boolean;
+  stale: boolean;
+  ageMs: number;
+  ttlMs: number;
+};
+
+type Entry<T> = {
+  value: T;
   ts: number;
-  data?: T;
-  inFlight?: Promise<T>;
+  pending?: Promise<T>;
 };
 
 export function createTTLCache(ttlMs: number) {
-  const store = new Map<string, CacheEntry<any>>();
+  const store = new Map<string, Entry<any>>();
 
-  async function get<T>(key: string, fetcher: () => Promise<T>) {
+  async function get<T>(key: string, fetcher: () => Promise<T>): Promise<CacheMeta<T>> {
     const now = Date.now();
-    const entry = store.get(key) as CacheEntry<T> | undefined;
+    const existing = store.get(key) as Entry<T> | undefined;
 
-    const ageMs = entry?.ts ? now - entry.ts : Number.POSITIVE_INFINITY;
-
-    if (entry?.data !== undefined && ageMs < ttlMs) {
-      return { data: entry.data, hit: true, stale: false, ageMs };
+    if (existing && now - existing.ts < ttlMs) {
+      return {
+        data: existing.value,
+        hit: true,
+        stale: false,
+        ageMs: now - existing.ts,
+        ttlMs
+      };
     }
 
-    if (entry?.inFlight) {
+    if (existing?.pending) {
       try {
-        const data = await entry.inFlight;
-        return { data, hit: false, stale: false, ageMs: 0 };
-      } catch (err) {
-        if (entry.data !== undefined) {
-          return { data: entry.data, hit: true, stale: true, ageMs };
+        const v = await existing.pending;
+        const fresh = store.get(key) as Entry<T> | undefined;
+        if (fresh) {
+          return { data: fresh.value, hit: true, stale: false, ageMs: now - fresh.ts, ttlMs };
         }
-        throw err;
+        return { data: v, hit: false, stale: false, ageMs: 0, ttlMs };
+      } catch (e) {
+        if (existing) {
+          return { data: existing.value, hit: true, stale: true, ageMs: now - existing.ts, ttlMs };
+        }
+        throw e;
       }
     }
 
-    const refreshPromise = (async () => {
-      const data = await fetcher();
-      store.set(key, { ts: Date.now(), data });
-      return data;
+    const pending = (async () => {
+      const v = await fetcher();
+      store.set(key, { value: v, ts: Date.now() });
+      return v;
     })();
 
-    store.set(key, {
-      ts: entry?.ts ?? 0,
-      data: entry?.data,
-      inFlight: refreshPromise
-    });
+    if (existing) {
+      store.set(key, { ...existing, pending });
+    } else {
+      store.set(key, { value: undefined as any, ts: 0, pending });
+    }
 
     try {
-      const data = await refreshPromise;
-      return { data, hit: false, stale: false, ageMs: 0 };
-    } catch (err) {
-      const cur = store.get(key) as CacheEntry<T> | undefined;
-
-      if (cur?.data !== undefined) {
-        store.set(key, { ts: cur.ts, data: cur.data });
-        return { data: cur.data, hit: true, stale: true, ageMs: Date.now() - cur.ts };
+      const v = await pending;
+      const fresh = store.get(key) as Entry<T> | undefined;
+      const ts = fresh?.ts ?? Date.now();
+      return { data: v, hit: false, stale: false, ageMs: Date.now() - ts, ttlMs };
+    } catch (e) {
+      if (existing && existing.value !== undefined) {
+        store.set(key, { value: existing.value, ts: existing.ts });
+        return { data: existing.value, hit: true, stale: true, ageMs: now - existing.ts, ttlMs };
       }
 
       store.delete(key);
-      throw err;
+      throw e;
     }
   }
 

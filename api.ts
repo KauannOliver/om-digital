@@ -1,9 +1,4 @@
-import type {
-  BranchInfo,
-  OperationInfo,
-  MainOrderRow,
-  AssetFamilySummary
-} from './types';
+import type { BranchInfo, OperationInfo, MainOrderRow, AssetFamilySummary } from './types';
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || '';
 
@@ -15,21 +10,24 @@ function makeUrl(path: string) {
 export type HttpOpts = {
   signal?: AbortSignal;
   timeoutMs?: number;
+  cache?: RequestCache;
 };
 
 function isAbortError(e: any) {
   const name = String(e?.name || '');
   const msg = String(e?.message || '').toLowerCase();
-  return (
-    name === 'AbortError' ||
-    msg.includes('aborted') ||
-    msg.includes('signal is aborted')
-  );
+  return name === 'AbortError' || msg.includes('aborted') || msg.includes('signal is aborted');
 }
 
 async function http<T>(path: string, opts: HttpOpts = {}): Promise<T> {
   const url = makeUrl(path);
-  const timeoutMs = opts.timeoutMs ?? 60_000;
+
+  const DEFAULT_TIMEOUT = Number((import.meta as any).env?.VITE_HTTP_TIMEOUT_MS || 60_000);
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT;
+
+  const DEFAULT_CACHE: RequestCache =
+    ((import.meta as any).env?.VITE_HTTP_CACHE as RequestCache) || 'no-store';
+  const cacheMode = opts.cache ?? DEFAULT_CACHE;
 
   const controller = new AbortController();
   const onAbort = () => controller.abort();
@@ -50,15 +48,21 @@ async function http<T>(path: string, opts: HttpOpts = {}): Promise<T> {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: controller.signal,
-      cache: 'no-store'
+      cache: cacheMode
     });
+
+    const queryCount = res.headers.get('X-DB-Query-Count');
+    const cacheStatus = res.headers.get('X-Cache');
+    if (queryCount !== null) {
+      console.log(`[API] ${path} - DB Queries: ${queryCount}${cacheStatus ? ` - Cache: ${cacheStatus}` : ''}`);
+    }
 
     if (!res.ok) {
       let msg = `${res.status} ${res.statusText}`;
       try {
         const body = await res.json();
         if (body?.error) msg = body.error;
-      } catch {}
+      } catch { }
       throw new Error(msg);
     }
 
@@ -91,24 +95,16 @@ export function fetchOperationInfo(operationCode: string, opts?: HttpOpts) {
 }
 
 export function fetchOrdersByBranch(branchRoute: string, opts?: HttpOpts) {
-  return http<MainOrderRow[]>(
-    `/api/orders/branch/${encodeURIComponent(branchRoute)}`,
-    opts
-  );
+  return http<MainOrderRow[]>(`/api/orders/branch/${encodeURIComponent(branchRoute)}`, opts);
 }
 
 export function fetchOrdersByOperation(operationCode: string, opts?: HttpOpts) {
-  return http<MainOrderRow[]>(
-    `/api/orders/operation/${encodeURIComponent(operationCode)}`,
-    opts
-  );
+  return http<MainOrderRow[]>(`/api/orders/operation/${encodeURIComponent(operationCode)}`, opts);
 }
 
+
 export function fetchAssetsSummaryByBranch(branchRoute: string, opts?: HttpOpts) {
-  return http<AssetFamilySummary[]>(
-    `/api/assets/summary/branch/${encodeURIComponent(branchRoute)}`,
-    opts
-  );
+  return http<AssetFamilySummary[]>(`/api/assets/summary/branch/${encodeURIComponent(branchRoute)}`, opts);
 }
 
 export function fetchAssetsSummaryByOperation(operationCode: string, opts?: HttpOpts) {
@@ -116,4 +112,8 @@ export function fetchAssetsSummaryByOperation(operationCode: string, opts?: Http
     `/api/assets/summary/operation/${encodeURIComponent(operationCode)}`,
     opts
   );
+}
+
+export function fetchAllOrders(opts?: HttpOpts) {
+  return http<MainOrderRow[]>('/api/orders/all', opts);
 }

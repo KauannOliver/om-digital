@@ -16,9 +16,11 @@ function parseDate(s?: string | null): Date | null {
     const [datePart, timePartRaw] = normalized.split(' ');
     const [y, m, d] = datePart.split('-').map((x) => Number(x));
 
-    let hh = 0, mm = 0, ss = 0;
+    let hh = 0,
+      mm = 0,
+      ss = 0;
     if (timePartRaw) {
-      const timePart = timePartRaw.split('.')[0]; // remove .000
+      const timePart = timePartRaw.split('.')[0];
       const parts = timePart.split(':');
       hh = Number(parts[0] ?? 0) || 0;
       mm = Number(parts[1] ?? 0) || 0;
@@ -33,7 +35,9 @@ function parseDate(s?: string | null): Date | null {
     const [datePart, timePartRaw] = v.split(' ');
     const [dd, mm2, yyyy] = datePart.split('/').map((x) => Number(x));
 
-    let hh = 0, mi = 0, ss = 0;
+    let hh = 0,
+      mi = 0,
+      ss = 0;
     if (timePartRaw) {
       const timePart = timePartRaw.split('.')[0];
       const parts = timePart.split(':');
@@ -96,7 +100,7 @@ function statusLabel(desc?: string | null) {
   const s = (desc || '').trim().toLowerCase();
 
   if (s.includes('aguardando execução') || s === 'aguardando') return 'AGUARDANDO EXEC.';
-  if (s.includes('atividade conclu') || s.includes('conclu')) return 'ATVD. CONCLUÍDA';
+  if (s.includes('atividade conclu') || s.includes('conclu')) return 'ATIV. CONCLUÍDA';
   if (s.includes('em andamento') || s.includes('andamento')) return 'EM ANDAMENTO';
 
   return (desc || '-').toUpperCase();
@@ -115,23 +119,27 @@ function normalizeFamilyName(v?: string | null) {
     .toUpperCase();
 }
 
+function publicImg(fileName: string) {
+  return `${import.meta.env.BASE_URL}imgs/${stripExt(fileName)}.png`;
+}
+
 function familyIconSrc(familyName?: string | null) {
   const s = normalizeFamilyName(familyName);
 
-  if (s.includes('VEICUL') && s.includes('LEVE')) return `/imgs/${stripExt('veiculo_leve-removebg-preview')}.png`;
-  if (s.includes('CAMINH')) return `/imgs/${stripExt('caminhao-removebg-preview')}.png`;
-  if (s.includes('CAVAL') && s.includes('MECAN')) return `/imgs/${stripExt('cavalo_mecanico-removebg-preview')}.png`;
-  if (s.includes('CAVAL')) return `/imgs/${stripExt('cavalo_mecanico-removebg-preview')}.png`;
-  if (s.includes('SEMI') || s.includes('REBOQ')) return `/imgs/${stripExt('semi_reboque-removebg-preview')}.png`;
-  if (s.includes('CARROCER')) return `/imgs/${stripExt('semi_reboque-removebg-preview')}.png`; // carroceria = semi
-  if (s.includes('TRATOR')) return `/imgs/${stripExt('trator-removebg-preview')}.png`;
-  if (s.includes('MAQUIN')) return `/imgs/${stripExt('maquina-removebg-preview')}.png`;
-  if (s.includes('EMPIL')) return `/imgs/${stripExt('empilhadeira-removebg-preview')}.png`;
-  if (s.includes('ONIBUS')) return `/imgs/${stripExt('onibus-removebg-preview')}.png`;
-  if (s.includes('EQUIP')) return `/imgs/${stripExt('equipamentos-removebg-preview')}.png`;
-  if (s.includes('AERONAV') || s.includes('AERONAVE') || s.includes('AVIAO')) return `/imgs/${stripExt('aeronave-removebg-preview')}.png`;
+  if (s.includes('VEICUL') && s.includes('LEVE')) return publicImg('veiculo_leve-removebg-preview');
+  if (s.includes('CAMINH')) return publicImg('caminhao-removebg-preview');
+  if (s.includes('CAVAL') && s.includes('MECAN')) return publicImg('cavalo_mecanico-removebg-preview');
+  if (s.includes('CAVAL')) return publicImg('cavalo_mecanico-removebg-preview');
+  if (s.includes('SEMI') || s.includes('REBOQ')) return publicImg('semi_reboque-removebg-preview');
+  if (s.includes('CARROCER')) return publicImg('semi_reboque-removebg-preview');
+  if (s.includes('TRATOR')) return publicImg('trator-removebg-preview');
+  if (s.includes('MAQUIN')) return publicImg('maquina-removebg-preview');
+  if (s.includes('EMPIL')) return publicImg('empilhadeira-removebg-preview');
+  if (s.includes('ONIBUS')) return publicImg('onibus-removebg-preview');
+  if (s.includes('EQUIP')) return publicImg('equipamentos-removebg-preview');
+  if (s.includes('AERONAV') || s.includes('AERONAVE') || s.includes('AVIAO')) return publicImg('aeronave-removebg-preview');
 
-  return `/imgs/${stripExt('maquina-removebg-preview')}.png`;
+  return publicImg('maquina-removebg-preview');
 }
 
 const OMTable: React.FC<OMTableProps> = ({ rows }) => {
@@ -274,16 +282,14 @@ const OMTable: React.FC<OMTableProps> = ({ rows }) => {
               key={`${r.id}-${r.number}`}
               className={[
                 'grid grid-cols-[90px_110px_80px_150px_90px_110px_120px_110px_1fr] border-b py-3 px-2 items-center',
-                overdue ? 'bg-red-50/70 border-red-100' : 'bg-white border-gray-100'
+                overdue ? 'bg-red-200 border-red-300' : 'bg-white border-gray-100'
               ].join(' ')}
             >
               <div className={cellStyle} title={`ID: ${r.id}`}>
                 {String(r.number ?? '').replace(/\D/g, '').padStart(6, '0')}
               </div>
 
-              <div className={`${cellStyle} uppercase`}>
-                {(r.asset_plate || '-').replace(/-/g, '')}
-              </div>
+              <div className={`${cellStyle} uppercase`}>{(r.asset_plate || '-').replace(/-/g, '')}</div>
 
               <div className="flex items-center justify-center" title={r.asset_family_name || '-'}>
                 <img
