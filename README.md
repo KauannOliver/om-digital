@@ -2,7 +2,7 @@
 
 A web dashboard that reads operational data from MySQL through a small Express API and presents it in a React interface.
 
-> This repository is private because its implementation connects to a real enterprise database and operational workflows. Do not publish its schema, records, hostnames, or credentials.
+> Public source edition. Configure credentials locally and use empty or synthetic inputs. Company and institution names identify the original integration context; this repository does not claim affiliation or endorsement.
 
 ## Components
 
