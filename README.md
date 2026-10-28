@@ -1,8 +1,7 @@
-# Workshop Operations Dashboard
+# OM Digital — Fleet Unavailability Dashboard
 
 A web dashboard that reads operational data from MySQL through a small Express API and presents it in a React interface.
 
-> Public source edition. Configure credentials locally and use empty or synthetic inputs. Company and institution names identify the original integration context; this repository does not claim affiliation or endorsement.
 
 ## Components
 
@@ -33,3 +32,18 @@ The example file documents the `VITE_*`, `PORT`, cache timing, and `DB_*` settin
 ## Repository note
 
 Generated `node_modules/` and `dist/` content was tracked in the original repository. The source of truth is the application source and lockfile; generated dependencies and build output are excluded from the curated version.
+
+
+## Snapshot review
+
+This is a dashboard for vehicles undergoing maintenance or awaiting release. It reads MySQL through an Express service and caches responses. It is separate from the excluded maintenance control-tower project; no control-tower functions are claimed here.
+
+Git-triggered Vercel deployment is disabled in the included web configurations. This update publishes source and documentation only.
+
+## License
+
+No new distribution license is granted for this corporate source edition. Public visibility does not grant reuse rights; obtain permission from the relevant rights holder. Existing third-party notices remain applicable.
+
+## Verification record
+
+See [snapshot checks and remaining limitations](docs/VERIFICATION.md).

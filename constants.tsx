@@ -13,6 +13,6 @@ export const LOGIN_CREDENTIALS = {
 };
 
 export const ASSETS = {
-  LOGO: '/imgs/logo-en.png',
+  LOGO: '/imgs/logo-en.svg',
   ANNOUNCEMENT_DEFAULT: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=1920',
 };
